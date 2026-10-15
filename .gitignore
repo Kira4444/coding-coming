@@ -1,0 +1,36 @@
+# 构建产物
+target/
+dist/
+node_modules/
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# 运行期数据
+data/
+workspaces/
+*.log
+logs/
+
+# 本地配置与密钥 —— 绝不入库
+.env
+.env.*
+!.env.example
+application-local.yml
+**/application-local.yml
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 便携版 MySQL —— 1.7G 的发行版 + 数据，绝不能入库
+mysql/
+
+# dev.ps1 的运行日志与 pid
+.run/
+
+# 打包产物（ssh-jumpserver.skill / .zip 之类）
+*.skill

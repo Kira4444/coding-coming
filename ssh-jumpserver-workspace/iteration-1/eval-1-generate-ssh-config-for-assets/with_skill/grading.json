@@ -1,0 +1,51 @@
+{
+  "expectations": [
+    {
+      "text": "ssh_config 里有三个 Host 条目，对应 web-01 / web-02 / redis-test",
+      "passed": true,
+      "evidence": "ssh_config 含 Host web-01 / web-02 / redis-test 三个独立块，另有一个共享选项块 `Host web-01 web-02 redis-test`。"
+    },
+    {
+      "text": "User 字段用了 JumpServer 直连语法（root#IP#admin 或等价），或用 ProxyJump 指到内网资产——不是简单的 User root + HostName 10.1.2.3",
+      "passed": true,
+      "evidence": "User root#10.1.2.3#admin / root#10.1.2.4#admin / root#10.1.2.5#admin。HostName 是 jms.company.com 而非内网 IP，正是用户名嵌入式直连的正确形态。另附资产名写法与 ProxyJump 备选注释。"
+    },
+    {
+      "text": "ssh_config 里不写任何密码",
+      "passed": true,
+      "evidence": "ssh_config 全文无密码字段，注释明确写「本文件不存任何密码」。"
+    },
+    {
+      "text": "response.md 里说明 ssh config 不能存密码，并给出免密（公钥）方案",
+      "passed": true,
+      "evidence": "response.md 说明 ssh config 没有 Password 字段、建议在 JumpServer 个人设置加 SSH 公钥实现免密，并给出目标机 authorized_keys 不用动的说明。"
+    },
+    {
+      "text": "HostName 是 jms.company.com，Port 是 2222（不是 22），和用户给的信息一致",
+      "passed": true,
+      "evidence": "三个 Host 条目均 HostName jms.company.com / Port 2222。"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  },
+  "timing": {
+    "executor_duration_seconds": 131.1,
+    "total_duration_seconds": 131.1
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "User 字段用了 JumpServer 直连语法",
+        "reason": "污染版 baseline 也写对了，区分度低。这条更像「模型知识」而非「skill 价值」。建议补一条考察 skill 特有内容的断言，比如是否提到直连语法的版本差异/探测顺序，或是否给出 probe 脚本的用法。"
+      },
+      {
+        "reason": "没有断言检查「配置是否可直接复制使用」——比如 Host 块之间的选项继承是否正确、IdentityFile 是否存在之类的可用性细节。"
+      }
+    ],
+    "overall": "断言全过，但这题更像常识题。skill 的增量价值要靠 eval-0/eval-2 的纪律类断言来体现。"
+  }
+}

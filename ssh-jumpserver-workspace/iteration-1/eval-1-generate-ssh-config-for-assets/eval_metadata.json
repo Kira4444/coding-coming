@@ -1,0 +1,27 @@
+{
+  "eval_id": 1,
+  "eval_name": "generate-ssh-config-for-assets",
+  "prompt": "我们有三台测试机都要走同一个 JumpServer（jms.company.com:2222，账号 admin）。资产分别是 web-01 (10.1.2.3)、web-02 (10.1.2.4)、redis-test (10.1.2.5)，都用 root 系统用户登录。帮我生成一份 ssh config，让我以后直接 ssh web-01 就能连上去，不用每次敲一堆参数。",
+  "assertions": [
+    {
+      "id": "three-host-entries",
+      "text": "ssh_config 里有三个 Host 条目，对应 web-01 / web-02 / redis-test"
+    },
+    {
+      "id": "uses-jumpserver-direct-syntax",
+      "text": "User 字段用了 JumpServer 直连语法（root#IP#admin 或等价），或用 ProxyJump 指到内网资产——不是简单的 User root + HostName 10.1.2.3（那样绕不过堡垒机）"
+    },
+    {
+      "id": "no-password-in-config",
+      "text": "ssh_config 里不写任何密码"
+    },
+    {
+      "id": "explains-password-limitation",
+      "text": "response.md 里说明 ssh config 不能存密码，并给出免密（公钥）方案"
+    },
+    {
+      "id": "port-and-host-correct",
+      "text": "HostName 是 jms.company.com，Port 是 2222（不是 22），和用户给的信息一致"
+    }
+  ]
+}

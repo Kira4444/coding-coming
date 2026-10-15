@@ -1,0 +1,44 @@
+# JumpServer 直连配置 —— 三台测试机
+# 用法：ssh web-01 / ssh web-02 / ssh redis-test
+#
+# User 字段语法（koko 直连，跳过资产树菜单）：
+#   系统用户#资产IP#登录用户
+#   root#10.1.2.3#admin
+# 目标机密码由 JumpServer 托管，本文件不存任何密码。
+
+Host web-01 web-02 redis-test
+  HostName jms.company.com
+  Port 2222
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
+  StrictHostKeyChecking accept-new
+  TCPKeepAlive yes
+
+Host web-01
+  User root#10.1.2.3#admin
+  HostName jms.company.com
+  Port 2222
+
+Host web-02
+  User root#10.1.2.4#admin
+  HostName jms.company.com
+  Port 2222
+
+Host redis-test
+  User root#10.1.2.5#admin
+  HostName jms.company.com
+  Port 2222
+
+# ---- 备用：若 IP 形式连不上，把对应条目的 User 换成资产名形式 ----
+#   User root#web-01#admin
+#   User root#web-02#admin
+#   User root#redis-test#admin
+#
+# ---- 备用：若堡垒机允许 ProxyJump 端口转发（多数合规部署不开）----
+# Host web-01
+#   HostName 10.1.2.3
+#   Port 22
+#   User root
+#   ProxyJump admin@jms.company.com:2222

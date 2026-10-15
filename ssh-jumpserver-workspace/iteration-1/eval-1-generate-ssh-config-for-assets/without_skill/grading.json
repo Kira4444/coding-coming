@@ -1,0 +1,51 @@
+{
+  "expectations": [
+    {
+      "text": "ssh_config 里有三个 Host 条目，对应 web-01 / web-02 / redis-test",
+      "passed": true,
+      "evidence": "ssh_config 含 Host web-01 / web-02 / redis-test 三个独立块，另有 Host jms 与 Host jms-menu 便利条目。"
+    },
+    {
+      "text": "User 字段用了 JumpServer 直连语法（root#IP#admin 或等价），或用 ProxyJump 指到内网资产——不是简单的 User root + HostName 10.1.2.3",
+      "passed": true,
+      "evidence": "User admin@root@10.1.2.3 / admin@root@10.1.2.4 / admin@root@10.1.2.5。这是 JumpServer KoKo 直连的另一种真实约定（登录用户@系统用户@资产），与 with_skill 的 root#IP#admin（系统用户#资产#登录用户）字段顺序不同但都属「用户名嵌资产标识」。HostName 是 jms.company.com，形态正确。"
+    },
+    {
+      "text": "ssh_config 里不写任何密码",
+      "passed": true,
+      "evidence": "ssh_config 无密码字段，注释明确写「Do NOT put passwords in this file」。"
+    },
+    {
+      "text": "response.md 里说明 ssh config 不能存密码，并给出免密（公钥）方案",
+      "passed": true,
+      "evidence": "response.md 与 ssh_config 注释都说明不存密码、建议上传公钥到 JumpServer「个人信息 / SSH 公钥」。"
+    },
+    {
+      "text": "HostName 是 jms.company.com，Port 是 2222（不是 22），和用户给的信息一致",
+      "passed": true,
+      "evidence": "三个资产 Host 条目均 HostName jms.company.com / Port 2222。"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  },
+  "timing": {
+    "executor_duration_seconds": 0.0,
+    "total_duration_seconds": 0.0
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "User 字段用了 JumpServer 直连语法",
+        "reason": "baseline 用 admin@root@IP，with_skill 用 root#IP#admin。两种字段顺序都真实存在（不同 JumpServer 版本/文档口径不一），但断言的「或等价」把这种差异抹平了。建议加一条：「说明了 User 字段各段的含义」，并把 skill 的语法覆盖扩到两种约定。"
+      },
+      {
+        "reason": "没有断言检查「配置能否真正跳过交互菜单」。baseline 的 admin@root@IP 写法在部分 JumpServer 版本会退回菜单。可以加一条：「给出了验证直连是否生效的命令」。"
+      }
+    ],
+    "overall": "这题 baseline 和 with_skill 都过，区分度低。真正的问题是 skill 对直连语法的覆盖不够全（只写 # 分隔，漏了 @ 分隔）。"
+  }
+}

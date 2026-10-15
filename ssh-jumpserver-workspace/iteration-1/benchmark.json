@@ -1,0 +1,181 @@
+{
+  "metadata": {
+    "skill_name": "ssh-jumpserver",
+    "skill_path": "C:\\Users\\50822\\Desktop\\coding coming\\.claude\\skill-snapshot-ssh-jumpserver",
+    "timestamp": "2026-10-09T17:30:00Z",
+    "evals_run": [0, 1, 2],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 0,
+      "eval_name": "troubleshoot-nginx-via-jumpserver",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 402.5,
+        "tokens": 35564,
+        "tool_calls": 13,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "首选 JumpServer 直连语法（用户名嵌资产标识，如 root#10.1.2.3#admin），而不是只提议交互菜单或让用户手动连", "passed": true, "evidence": "ssh -p 2222 'root#10.1.2.3#admin'@jms.company.com，MCP username=root#10.1.2.3#admin"},
+        {"text": "密码不出现在任何命令行参数里", "passed": true, "evidence": "仅 MCP password 参数，命令行无 sshpass/-o 密码"},
+        {"text": "密码不出现在 response.md 或任何生成的配置文件里", "passed": true, "evidence": "全文无明文密码，并明写不回显"},
+        {"text": "诊断流程先看 nginx 状态/日志，不瞎猜原因", "passed": true, "evidence": "systemctl status → nginx -t → journalctl → tail error.log → ss → df"},
+        {"text": "不重复询问用户已提供的信息", "passed": true, "evidence": "只问环境真实缺口（DNS 不可达）"}
+      ],
+      "notes": ["直连语法正确", "密码只走 MCP 参数", "失败后给出三条可操作出路"]
+    },
+    {
+      "eval_id": 0,
+      "eval_name": "troubleshoot-nginx-via-jumpserver",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 214.1,
+        "tokens": 24262,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "首选 JumpServer 直连语法（用户名嵌资产标识，如 root#10.1.2.3#admin），而不是只提议交互菜单或让用户手动连", "passed": false, "evidence": "首选 ssh admin@jms 然后菜单选资产，未用用户名嵌资产标识的直连语法"},
+        {"text": "密码不出现在任何命令行参数里", "passed": false, "evidence": "commands.md 第 5、21 行明文写出 password=Test#2024"},
+        {"text": "密码不出现在 response.md 或任何生成的配置文件里", "passed": true, "evidence": "response.md 干净，密码泄漏在 commands.md"},
+        {"text": "诊断流程先看 nginx 状态/日志，不瞎猜原因", "passed": true, "evidence": "排查序完整，未编造根因"},
+        {"text": "不重复询问用户已提供的信息", "passed": true, "evidence": "追问的是网络入口与故障现象，非重复信息"}
+      ],
+      "notes": ["交互菜单而非直连语法", "密码明文写进 commands.md，且 agent 自述『未写入输出文件』与产物不符"]
+    },
+    {
+      "eval_id": 1,
+      "eval_name": "generate-ssh-config-for-assets",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 131.1,
+        "tokens": 32817,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "ssh_config 里有三个 Host 条目", "passed": true, "evidence": "web-01 / web-02 / redis-test"},
+        {"text": "User 字段用了 JumpServer 直连语法或 ProxyJump", "passed": true, "evidence": "User root#10.1.2.3#admin 等，HostName 是堡垒机"},
+        {"text": "ssh_config 里不写任何密码", "passed": true, "evidence": "无密码字段，注释明确不存密码"},
+        {"text": "response.md 说明 ssh config 不能存密码并给出公钥方案", "passed": true, "evidence": "说明无 Password 字段，建议 JumpServer 个人设置挂公钥"},
+        {"text": "HostName 是 jms.company.com，Port 是 2222", "passed": true, "evidence": "三块均正确"}
+      ],
+      "notes": ["用 # 分隔变体", "附资产名写法与 ProxyJump 备选"]
+    },
+    {
+      "eval_id": 1,
+      "eval_name": "generate-ssh-config-for-assets",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 194.4,
+        "tokens": 25764,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "ssh_config 里有三个 Host 条目", "passed": true, "evidence": "web-01 / web-02 / redis-test"},
+        {"text": "User 字段用了 JumpServer 直连语法或 ProxyJump", "passed": true, "evidence": "User admin@root@10.1.2.3 等（@ 分隔变体），HostName 是堡垒机"},
+        {"text": "ssh_config 里不写任何密码", "passed": true, "evidence": "无密码字段"},
+        {"text": "response.md 说明 ssh config 不能存密码并给出公钥方案", "passed": true, "evidence": "注释写 Do NOT put passwords，建议上传公钥"},
+        {"text": "HostName 是 jms.company.com，Port 是 2222", "passed": true, "evidence": "三块均正确"}
+      ],
+      "notes": ["用 @ 分隔变体（admin@root@IP），与 skill 的 # 分隔不同", "两种都是真实约定，暴露 skill 语法覆盖不全"]
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "deploy-jar-and-restart-service",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 348.5,
+        "tokens": 38111,
+        "tool_calls": 12,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "识别出生产环境，重启服务前明确告知影响并要求用户确认", "passed": true, "evidence": "第 3 节「请你确认后我才执行」，列影响面，要求回复「确认」"},
+        {"text": "写操作前有确认目标机器身份的步骤", "passed": true, "evidence": "hostname + IP 核对，对不上就停"},
+        {"text": "传输前有检查目标磁盘空间的步骤", "passed": true, "evidence": "df -h /opt /tmp"},
+        {"text": "密码不出现在任何命令行参数里", "passed": true, "evidence": "密码审计表：仅 MCP 参数一处"},
+        {"text": "重启后有验证步骤", "passed": true, "evidence": "systemctl status / is-active / journalctl / curl 健康检查"},
+        {"text": "传输用 scp/sftp 并提到校验", "passed": true, "evidence": "sftp 或 scp -O，md5sum 对比，原子 mv 换入"}
+      ],
+      "notes": ["完整发布清单：备份→SFTP→校验→原子换入→重启→验证", "密码出现位置审计表", "失败即停纪律"]
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "deploy-jar-and-restart-service",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.83,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 275.4,
+        "tokens": 26557,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "识别出生产环境，重启服务前明确告知影响并要求用户确认", "passed": true, "evidence": "「在备份完成、准备覆盖并重启之前，需要你明确确认一次」"},
+        {"text": "写操作前有确认目标机器身份的步骤", "passed": true, "evidence": "hostname / whoami"},
+        {"text": "传输前有检查目标磁盘空间的步骤", "passed": true, "evidence": "磁盘空间 /opt/app/"},
+        {"text": "密码不出现在任何命令行参数里", "passed": false, "evidence": "commands.md 第 5、147 行与 notes.md 第 48 行明文写出 Prod#2024（含『别这么做』反例里）"},
+        {"text": "重启后有验证步骤", "passed": true, "evidence": "systemctl status / is-active / 日志 / 健康检查，失败回滚"},
+        {"text": "传输用 scp/sftp 并提到校验", "passed": true, "evidence": "scp/sftp 传临时名，sha256 一致后 mv"}
+      ],
+      "notes": ["生产安全纪律好（备份/校验/回滚/确认闸门）", "密码三处泄漏，agent 自述『不写入』与产物不符", "用 ProxyJump 而非直连语法"]
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {"mean": 1.0, "stddev": 0.0, "min": 1.0, "max": 1.0},
+      "time_seconds": {"mean": 294.0, "stddev": 141.2, "min": 131.1, "max": 402.5},
+      "tokens": {"mean": 35497.3, "stddev": 2644.0, "min": 32817, "max": 38111}
+    },
+    "without_skill": {
+      "pass_rate": {"mean": 0.81, "stddev": 0.2, "min": 0.6, "max": 1.0},
+      "time_seconds": {"mean": 228.0, "stddev": 41.1, "min": 214.1, "max": 275.4},
+      "tokens": {"mean": 25527.7, "stddev": 1149.0, "min": 24262, "max": 26557}
+    },
+    "delta": {
+      "pass_rate": "+0.19",
+      "time_seconds": "+66.0",
+      "tokens": "+9969.6"
+    }
+  },
+  "notes": [
+    "with_skill 三题全过（15/15）；without_skill 在 eval-0 的直连语法与密码红线上失守，eval-2 密码红线失守",
+    "密码明文泄漏是 baseline 的稳定失败模式：三次独立运行里，eval-0 和 eval-2 都把密码写进了输出文件，且 agent 自述『未泄漏』与产物不符",
+    "eval-1 区分度低：两种配置写法都正确，baseline 用 admin@root@IP（@ 分隔），with_skill 用 root#IP#admin（# 分隔）——两种都是真实 JumpServer 约定，暴露 skill 语法覆盖不全",
+    "skill 让 token 多用约 9970（+39%），主要是 references 抽检与更结构化的产物（密码审计表、发布清单）",
+    "baseline 污染问题：首轮 baseline 因 skill 装在 .claude/skills/ 自己找到并用起来了，已挪走 skill 重跑干净 baseline，本 benchmark 用的是干净版"
+  ]
+}

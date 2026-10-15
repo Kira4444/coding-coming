@@ -1,0 +1,70 @@
+# SSH config — 经 JumpServer (jms.company.com:2222) 访问测试资产
+#
+# 用法：把下面内容合并进 ~/.ssh/config（Windows 是 C:\Users\<你>\.ssh\config），
+# 之后直接 `ssh web-01` / `ssh web-02` / `ssh redis-test` 即可。
+#
+# 走 JumpServer koko 的「用户名嵌资产标识」直连语法，跳过资产树交互菜单：
+#   User = <系统用户>#<资产>#<JumpServer登录用户>
+# 系统用户 = root（登录目标机的账号）
+# 登录用户 = admin（登录 JumpServer 的账号）
+#
+# 注意：ssh config 没有 Password 字段，这是设计如此。
+# 免密请配置 SSH 密钥，并把公钥加到 JumpServer 个人设置里（见 notes.md）。
+
+# ---------- 三台测试资产 ----------
+# 资产名 web-01，IP 10.1.2.3
+
+Host web-01
+  HostName jms.company.com
+  Port 2222
+  User root#10.1.2.3#admin
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
+  StrictHostKeyChecking accept-new
+
+# 资产名 web-02，IP 10.1.2.4
+
+Host web-02
+  HostName jms.company.com
+  Port 2222
+  User root#10.1.2.4#admin
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
+  StrictHostKeyChecking accept-new
+
+# 资产名 redis-test，IP 10.1.2.5
+
+Host redis-test
+  HostName jms.company.com
+  Port 2222
+  User root#10.1.2.5#admin
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
+  StrictHostKeyChecking accept-new
+
+# ---------- 备用：JumpServer 本身（进资产树菜单用） ----------
+# 只想手动登堡垒机挑机器时：ssh jms
+
+Host jms
+  HostName jms.company.com
+  Port 2222
+  User admin
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
+
+# ---------- 备用：资产名形式（IP 形式退回菜单时再换） ----------
+# 部分 JumpServer 部署对资产标识的解析只认注册名、不认 IP。
+# 若 `ssh web-01` 落回交互菜单，把上面各条的 User 换成下面这种写法，
+# 其余字段不动：
+#
+#   User root#web-01#admin
+#   User root#web-02#admin
+#   User root#redis-test#admin

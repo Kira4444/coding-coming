@@ -1,0 +1,85 @@
+# ============================================================
+# SSH config for JumpServer-managed test assets
+# Target file: ~/.ssh/config   (Windows: C:\Users\<you>\.ssh\config)
+# Usage: ssh web-01 / ssh web-02 / ssh redis-test
+# ============================================================
+
+# --- Connection reuse (optional but recommended) ----------------
+# Reuse the first TCP connection to JumpServer so subsequent
+# ssh/scp/sftp to any asset does not re-authenticate from scratch.
+Host jms
+    HostName                    jms.company.com
+    Port                        2222
+    User                        admin
+    IdentityFile                ~/.ssh/id_ed25519
+    IdentitiesOnly              yes
+    ServerAliveInterval         30
+    ServerAliveCountMax         3
+    # Only pin this if you have verified the host key once already:
+    # StrictHostKeyChecking     accept-new
+
+# --- JumpServer asset aliases -----------------------------------
+# JumpServer (KoKo) parses the SSH username as:
+#   <JumpServer用户>@<系统用户>@<资产IP或名称>
+# so the "User" below is NOT a shell account — it is the routing
+# string JumpServer uses to pick the target asset.
+
+Host web-01
+    HostName                    jms.company.com
+    Port                        2222
+    User                        admin@root@10.1.2.3
+    IdentityFile                ~/.ssh/id_ed25519
+    IdentitiesOnly              yes
+    ProxyJump                   none
+    RequestTTY                  yes
+    ServerAliveInterval         30
+    ServerAliveCountMax         3
+
+Host web-02
+    HostName                    jms.company.com
+    Port                        2222
+    User                        admin@root@10.1.2.4
+    IdentityFile                ~/.ssh/id_ed25519
+    IdentitiesOnly              yes
+    ProxyJump                   none
+    RequestTTY                  yes
+    ServerAliveInterval         30
+    ServerAliveCountMax         3
+
+Host redis-test
+    HostName                    jms.company.com
+    Port                        2222
+    User                        admin@root@10.1.2.5
+    IdentityFile                ~/.ssh/id_ed25519
+    IdentitiesOnly              yes
+    ProxyJump                   none
+    RequestTTY                  yes
+    ServerAliveInterval         30
+    ServerAliveCountMax         3
+
+# --- Convenience: open the asset picker menu --------------------
+# ssh jms-menu  ->  interactive JumpServer asset list
+Host jms-menu
+    HostName                    jms.company.com
+    Port                        2222
+    User                        admin
+    RequestTTY                  yes
+
+# --- Notes ------------------------------------------------------
+# 1. Do NOT put passwords in this file. Use an SSH key
+#    (IdentityFile) or an ssh-agent.
+# 2. If your JumpServer account is password-only (no key registered),
+#    drop IdentityFile/IdentitiesOnly and you will be prompted each
+#    time; better: upload your public key in JumpServer under
+#    个人信息 / SSH 公钥.
+# 3. Alternate routing strings (if IP-based routing is disabled):
+#      User admin@root@web-01
+#      User admin@root@web-02
+#      User admin@root@redis-test
+# 4. If your JumpServer deployment instead exposes a plain SSH
+#    bastion (not the KoKo menu on 2222), replace the three Host
+#    blocks with:
+#      Host web-01
+#          HostName 10.1.2.3
+#          User   root
+#          ProxyJump jms

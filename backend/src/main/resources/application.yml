@@ -1,0 +1,75 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: coding-agent
+  datasource:
+    # 本地开发与 docker-compose 共用同一套变量名，换环境只改 .env
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:coding_agent}?useSSL=false&serverTimezone=UTC&characterEncoding=utf8&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:coding_agent}
+    password: ${MYSQL_PASSWORD:coding_agent}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+
+coding-agent:
+  # 工作区根目录。每个会话在其下开一个独立目录，bind mount 进沙箱。
+  workspace-root: ${CODING_AGENT_WORKSPACE_ROOT:./data/workspaces}
+
+  model:
+    default-provider: ${CODING_AGENT_DEFAULT_PROVIDER:mimo}
+    providers:
+      # 小米 MiMo。公开 API 端点见 https://mimo.mi.com/docs/zh-CN/quick-start/summary/first-api-call
+      # OpenAI 协议在 /v1，Anthropic 协议在 /anthropic。
+      # 注意不要用 Claude Code 自己的 token-plan 端点——那是 harness 专用通道。
+      mimo:
+        base-url: ${MIMO_BASE_URL:https://api.xiaomimimo.com/v1}
+        api-key: ${MIMO_API_KEY:}
+        model: ${MIMO_MODEL:mimo-v2.6-flash}
+      deepseek:
+        # DeepSeek 与 vLLM / SGLang 自部署同为 OpenAI 兼容，换 base-url 即可复用
+        base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+        api-key: ${DEEPSEEK_API_KEY:}
+        model: ${DEEPSEEK_MODEL:deepseek-chat}
+      glm:
+        base-url: ${GLM_BASE_URL:https://open.bigmodel.cn/api/paas/v4}
+        api-key: ${GLM_API_KEY:}
+        model: ${GLM_MODEL:glm-4.5}
+    # 形如 "providerId/modelName"。MVP 不填也能跑，结构先留好。
+    # task-overrides:
+    #   plan: glm/glm-4.5
+    #   summary: deepseek/deepseek-chat
+
+  sandbox:
+    # local = 本机开发用，直接在工作区目录下起进程，不隔离，仅限开发环境
+    # docker = 一会话一容器，生产与服务器部署用
+    driver: ${CODING_AGENT_SANDBOX_DRIVER:local}
+    default-image: ${CODING_AGENT_SANDBOX_IMAGE:coding-agent/sandbox:latest}
+    network: ${CODING_AGENT_SANDBOX_NETWORK:public}
+    cpu: ${CODING_AGENT_SANDBOX_CPU:2}
+    memory: ${CODING_AGENT_SANDBOX_MEMORY:4g}
+    max-concurrent-sessions: ${CODING_AGENT_MAX_CONCURRENT:4}
+
+  agent:
+    # 单会话最大轮次，防止工具调用死循环烧钱
+    max-turns: ${CODING_AGENT_MAX_TURNS:40}
+    # 单会话 token 预算，超出后提示用户新开会话
+    token-budget: ${CODING_AGENT_TOKEN_BUDGET:500000}
+    # 工具输出截断 —— 没有这层，一次 npm test 的输出就能吃掉几万 token
+    shell-output-max-lines: 200
+    shell-output-max-chars: 20000
+    file-read-max-lines: 500
+    search-max-results: 100
+
+logging:
+  level:
+    com.codingagent: ${CODING_AGENT_LOG_LEVEL:INFO}
+    root: INFO

@@ -1,0 +1,48 @@
+{
+  "expectations": [
+    {
+      "text": "首选 JumpServer 直连语法（用户名嵌资产标识，如 root#10.1.2.3#admin），而不是只提议交互菜单或让用户手动连",
+      "passed": true,
+      "evidence": "response.md 明确写出 `ssh -p 2222 'root#10.1.2.3#admin'@jms.company.com`，commands.md 记录 MCP ssh_connect(username=root#10.1.2.3#admin)。还给出资产名/简化/ProxyJump 备选语法，交互菜单只作为降级提示。"
+    },
+    {
+      "text": "密码不出现在任何命令行参数里（commands.md 中不出现 sshpass -p / -o 里塞密码 / echo 密码 | ssh 之类）",
+      "passed": true,
+      "evidence": "commands.md 密码审计节写明「MCP ssh_connect 的 password 参数（仅此一处，工具通道，不进 ps）」；已执行命令为 BatchMode=yes 的免密探测，无 sshpass / -o 塞密码 / echo 密码 | ssh。"
+    },
+    {
+      "text": "密码不出现在 response.md 或任何生成的配置文件里",
+      "passed": true,
+      "evidence": "response.md 与 commands.md 全文检索无明文密码；且明文写出「你给的账号密码我只用于本次连接认证，不会写进任何配置文件、日志或命令行历史」。"
+    },
+    {
+      "text": "诊断流程先看 nginx 状态/日志（systemctl status / tail error.log 之类），不瞎猜原因",
+      "passed": true,
+      "evidence": "response.md「连上之后我会怎么查」六步：systemctl status nginx → nginx -t → journalctl → tail error.log → ss 端口 → df 磁盘。commands.md 同步列出 4-13 号命令。未编造任何根因。"
+    },
+    {
+      "text": "不重复询问用户已提供的信息（堡垒机地址、账号、密码、资产 IP、系统用户都已给出）",
+      "passed": true,
+      "evidence": "未重复询问任何已给信息。只提出环境侧真实缺口：DNS 解析不了 jms.company.com，需可达入口/VPN/让用户贴输出。"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  },
+  "timing": {
+    "executor_duration_seconds": 402.5,
+    "total_duration_seconds": 402.5
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "首选 JumpServer 直连语法",
+        "reason": "baseline（污染版）也写对了语法，说明模型本身就懂 koko 直连格式。这条断言区分度低。真正区分 skill 价值的是密码红线、生产确认闸门、排查纪律这几条。"
+      }
+    ],
+    "overall": "断言全过。建议后续迭代加一条区分度更高的：比如「探测失败后是否给出可操作的下一步（而不是只说连不上）」或「是否说明直连语法的字段含义」。"
+  }
+}

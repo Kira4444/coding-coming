@@ -1,0 +1,92 @@
+# Coding Agent 一键部署
+#
+# 起步：
+#   cp .env.example .env   # 填入模型 API key
+#   docker compose up -d
+#
+# 沙箱若要用 docker 驱动，需给 backend 挂 Docker socket —— 风险见 README「安全」一节。
+
+services:
+  mysql:
+    # 自建镜像：schema 与字符集配置烤进去，不依赖 bind mount。
+    # 不想自建就换回官方镜像并保留下面的 volumes 挂载 schema.sql。
+    build:
+      context: .
+      dockerfile: docker/mysql/Dockerfile
+    image: coding-agent/mysql:8.4
+    container_name: coding-agent-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-me}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-coding_agent}
+      MYSQL_USER: ${MYSQL_USER:-coding_agent}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-coding_agent}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-change-me}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: coding-agent-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      # 在容器里访问宿主机上的 MySQL
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-coding_agent}
+      MYSQL_USER: ${MYSQL_USER:-coding_agent}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-coding_agent}
+
+      GLM_API_KEY: ${GLM_API_KEY:-}
+      GLM_BASE_URL: ${GLM_BASE_URL:-https://open.bigmodel.cn/api/paas/v4}
+      GLM_MODEL: ${GLM_MODEL:-glm-4.5}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      CODING_AGENT_DEFAULT_PROVIDER: ${CODING_AGENT_DEFAULT_PROVIDER:-deepseek}
+
+      # 服务跑在容器里，沙箱驱动必须是 docker
+      CODING_AGENT_SANDBOX_DRIVER: docker
+      CODING_AGENT_SANDBOX_IMAGE: ${CODING_AGENT_SANDBOX_IMAGE:-coding-agent/sandbox:latest}
+      CODING_AGENT_SANDBOX_NETWORK: ${CODING_AGENT_SANDBOX_NETWORK:-public}
+      CODING_AGENT_SANDBOX_CPU: ${CODING_AGENT_SANDBOX_CPU:-2}
+      CODING_AGENT_SANDBOX_MEMORY: ${CODING_AGENT_SANDBOX_MEMORY:-4g}
+      CODING_AGENT_MAX_CONCURRENT: ${CODING_AGENT_MAX_CONCURRENT:-4}
+
+      CODING_AGENT_WORKSPACE_ROOT: /data/workspaces
+      CODING_AGENT_MAX_TURNS: ${CODING_AGENT_MAX_TURNS:-40}
+      CODING_AGENT_TOKEN_BUDGET: ${CODING_AGENT_TOKEN_BUDGET:-500000}
+      CODING_AGENT_LOG_LEVEL: ${CODING_AGENT_LOG_LEVEL:-INFO}
+    volumes:
+      - workspace-data:/data/workspaces
+      # 挂 Docker socket 才能在宿主机上开沙箱容器。
+      # 这是本部署里权限最大的一笔账，详见 README「安全」一节。
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: coding-agent-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  mysql-data:
+  workspace-data:

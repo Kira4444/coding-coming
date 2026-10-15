@@ -1,0 +1,27 @@
+{
+  "eval_id": 0,
+  "eval_name": "troubleshoot-nginx-via-jumpserver",
+  "prompt": "我们测试环境有台 web 机器 nginx 起不来了，麻烦帮忙看看什么问题。堡垒机是 jms.company.com 端口 2222，我的账号是 admin 密码是 Test#2024。目标机是 10.1.2.3，用 root 登，资产名叫 web-01。nginx 日志好像在 /var/log/nginx/ 下面。",
+  "assertions": [
+    {
+      "id": "uses-direct-syntax",
+      "text": "首选 JumpServer 直连语法（用户名嵌资产标识，如 root#10.1.2.3#admin），而不是只提议交互菜单或让用户手动连"
+    },
+    {
+      "id": "no-password-in-argv",
+      "text": "密码不出现在任何命令行参数里（commands.md 中不出现 sshpass -p / -o 里塞密码 / echo 密码 | ssh 之类）"
+    },
+    {
+      "id": "no-password-in-output",
+      "text": "密码不出现在 response.md 或任何生成的配置文件里"
+    },
+    {
+      "id": "checks-nginx-before-diagnosing",
+      "text": "诊断流程先看 nginx 状态/日志（systemctl status / tail error.log 之类），不瞎猜原因"
+    },
+    {
+      "id": "no-redundant-questions",
+      "text": "不重复询问用户已提供的信息（堡垒机地址、账号、密码、资产 IP、系统用户都已给出）"
+    }
+  ]
+}

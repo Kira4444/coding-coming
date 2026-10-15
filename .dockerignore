@@ -1,0 +1,17 @@
+# 构建上下文是仓库根目录，但镜像只用到 backend/src/main/resources/schema.sql
+# 和 docker/mysql/ 三个文件。把这些挡掉，免得 280MB 的 MySQL zip
+# 和 node_modules 每次 build 都被传进 daemon。
+
+# 便携版 MySQL（体积最大，且镜像里用的是官方 mysql:8.4 基础镜像）
+mysql/
+
+# 依赖与产物
+**/node_modules/
+frontend/dist/
+backend/target/
+data/
+
+# 本地配置
+.env
+*.log
+.git/
