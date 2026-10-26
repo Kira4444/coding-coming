@@ -15,7 +15,7 @@ public final class ProjectAgentConfig {
 
     /** 空配置：全部用全局默认 */
     public static final ProjectAgentConfig DEFAULT = new ProjectAgentConfig(
-            null, Collections.emptySet(), null, null, null, Collections.emptySet());
+            null, Collections.emptySet(), null, null, null, Collections.emptySet(), null);
 
     private final String instructions;
     private final Set<String> enabledTools;
@@ -23,6 +23,8 @@ public final class ProjectAgentConfig {
     private final Integer maxTurns;
     private final Long tokenBudget;
     private final Set<String> excludePaths;
+    /** 项目级模型覆盖，形如 {@code providerId/modelName}。空则走全局默认。 */
+    private final String modelOverride;
 
     public ProjectAgentConfig(String instructions,
                               Set<String> enabledTools,
@@ -30,12 +32,23 @@ public final class ProjectAgentConfig {
                               Integer maxTurns,
                               Long tokenBudget,
                               Set<String> excludePaths) {
+        this(instructions, enabledTools, approvalPolicy, maxTurns, tokenBudget, excludePaths, null);
+    }
+
+    public ProjectAgentConfig(String instructions,
+                              Set<String> enabledTools,
+                              String approvalPolicy,
+                              Integer maxTurns,
+                              Long tokenBudget,
+                              Set<String> excludePaths,
+                              String modelOverride) {
         this.instructions = (instructions == null || instructions.isBlank()) ? null : instructions.trim();
         this.enabledTools = enabledTools == null ? Collections.emptySet() : Set.copyOf(enabledTools);
         this.approvalPolicy = (approvalPolicy == null || approvalPolicy.isBlank()) ? null : approvalPolicy.trim();
         this.maxTurns = maxTurns;
         this.tokenBudget = tokenBudget;
         this.excludePaths = excludePaths == null ? Collections.emptySet() : Set.copyOf(excludePaths);
+        this.modelOverride = (modelOverride == null || modelOverride.isBlank()) ? null : modelOverride.trim();
     }
 
     /** 从逗号/换行分隔的字符串解析列表，空串返回空集 */
@@ -80,6 +93,14 @@ public final class ProjectAgentConfig {
 
     public Set<String> excludePaths() {
         return excludePaths;
+    }
+
+    /**
+     * 项目级模型覆盖，形如 {@code providerId/modelName}。
+     * 返回 {@code null} 表示没配，走全局默认 provider。
+     */
+    public String modelOverride() {
+        return modelOverride;
     }
 
     /**

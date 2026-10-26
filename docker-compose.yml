@@ -41,6 +41,10 @@ services:
       mysql:
         condition: service_healthy
     environment:
+      # 推送凭据加密密钥。缺失时服务拒绝启动，不是可选项——
+      # 生成：openssl rand -base64 32，写进 .env
+      CODING_AGENT_SECRET_KEY: ${CODING_AGENT_SECRET_KEY:?必须在 .env 里设置 CODING_AGENT_SECRET_KEY}
+
       # 在容器里访问宿主机上的 MySQL
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
@@ -48,13 +52,23 @@ services:
       MYSQL_USER: ${MYSQL_USER:-coding_agent}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-coding_agent}
 
+      # 小米 MiMo（按量付费，sk- 密钥）
+      MIMO_API_KEY: ${MIMO_API_KEY:-}
+      MIMO_BASE_URL: ${MIMO_BASE_URL:-https://api.xiaomimimo.com/v1}
+      MIMO_MODEL: ${MIMO_MODEL:-mimo-v2.6-flash}
+      # 小米 Token Plan（coding plan，tp- 密钥）。只用 CN 区域；
+      # 密钥与按量付费不通用，端点也不同，别混用。
+      MIMO_TOKEN_PLAN_KEY: ${MIMO_TOKEN_PLAN_KEY:-}
+      MIMO_TOKEN_PLAN_BASE_URL: ${MIMO_TOKEN_PLAN_BASE_URL:-https://token-plan-cn.xiaomimimo.com/v1}
+      MIMO_TOKEN_PLAN_MODEL: ${MIMO_TOKEN_PLAN_MODEL:-mimo-v2.6-pro}
+
       GLM_API_KEY: ${GLM_API_KEY:-}
       GLM_BASE_URL: ${GLM_BASE_URL:-https://open.bigmodel.cn/api/paas/v4}
       GLM_MODEL: ${GLM_MODEL:-glm-4.5}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
-      CODING_AGENT_DEFAULT_PROVIDER: ${CODING_AGENT_DEFAULT_PROVIDER:-deepseek}
+      CODING_AGENT_DEFAULT_PROVIDER: ${CODING_AGENT_DEFAULT_PROVIDER:-mimo}
 
       # 服务跑在容器里，沙箱驱动必须是 docker
       CODING_AGENT_SANDBOX_DRIVER: docker

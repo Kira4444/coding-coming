@@ -161,7 +161,7 @@ public class AgentLoop {
             }
 
             List<ChatMessage> sent = ctxMgr.protect(messages);
-            ModelRouter.ResolvedModel resolved = router.resolve(taskType);
+            ModelRouter.ResolvedModel resolved = router.resolve(taskType, projectConfig.modelOverride());
 
             // 项目白名单过滤：没开的工具既不出现在模型可见的 tools 里，
             // 也不会被分发执行——两头都堵，避免模型幻觉调用后才发现被禁

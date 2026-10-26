@@ -34,6 +34,14 @@ coding-agent:
         base-url: ${MIMO_BASE_URL:https://api.xiaomimimo.com/v1}
         api-key: ${MIMO_API_KEY:}
         model: ${MIMO_MODEL:mimo-v2.6-flash}
+      # 小米 Token Plan（coding plan）。只用 CN 区域。
+      # 与上面的按量付费 mimo 是两套东西：端点 token-plan-cn 而非 api.xiaomimimo.com，
+      # 密钥是 tp- 开头而非 sk- 开头，两者互不通用。
+      # 文档：https://mimo.mi.com/docs/zh-CN/tokenplan/Token%20Plan/quick-access
+      mimo-token-plan:
+        base-url: ${MIMO_TOKEN_PLAN_BASE_URL:https://token-plan-cn.xiaomimimo.com/v1}
+        api-key: ${MIMO_TOKEN_PLAN_KEY:}
+        model: ${MIMO_TOKEN_PLAN_MODEL:mimo-v2.6-pro}
       deepseek:
         # DeepSeek 与 vLLM / SGLang 自部署同为 OpenAI 兼容，换 base-url 即可复用
         base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}

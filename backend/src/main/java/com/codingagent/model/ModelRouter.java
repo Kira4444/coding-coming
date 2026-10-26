@@ -31,24 +31,41 @@ public class ModelRouter {
 
     /** 解析出实际调用目标 */
     public ResolvedModel resolve(String taskType) {
+        return resolve(taskType, null);
+    }
+
+    /**
+     * 解析出实际调用目标，支持项目级模型覆盖。
+     *
+     * <p>优先级：项目覆盖 &gt; 任务类型覆盖 &gt; 默认 provider。
+     * 项目覆盖是用户在项目设置里明确指定的，比全局的任务类型分流更贴近意图，
+     * 所以排最前。取值形如 {@code providerId/modelName}，例如
+     * {@code mimo-token-plan/mimo-v2.6-pro}。
+     */
+    public ResolvedModel resolve(String taskType, String projectOverride) {
+        // 1. 项目级覆盖
+        if (projectOverride != null && !projectOverride.isBlank()) {
+            return parse(projectOverride, "项目模型覆盖");
+        }
+        // 2. 任务类型覆盖
         String override = taskType == null ? null : properties.getTaskOverrides().get(taskType);
         if (override != null && !override.isBlank()) {
-            String[] parts = override.split("/", 2);
-            if (parts.length != 2 || parts[0].isBlank() || parts[1].isBlank()) {
-                throw new IllegalArgumentException(
-                        "task-overrides 取值应形如 providerId/modelName，当前: " + override);
-            }
-            return new ResolvedModel(registry.require(parts[0].trim()), parts[1].trim());
+            return parse(override, "task-overrides");
         }
+        // 3. 默认 provider
         LlmProvider provider = registry.defaultProvider();
         ModelProperties.Provider cfg = properties.getProviders().get(provider.id());
         String model = cfg != null ? cfg.getModel() : null;
         return new ResolvedModel(provider, model);
     }
 
-    /** 项目级覆盖的扩展点。MVP 恒返回空，二期接项目设置表。 */
-    public java.util.Optional<String> projectOverride(String projectId, String taskType) {
-        return java.util.Optional.empty();
+    private ResolvedModel parse(String spec, String source) {
+        String[] parts = spec.split("/", 2);
+        if (parts.length != 2 || parts[0].isBlank() || parts[1].isBlank()) {
+            throw new IllegalArgumentException(
+                    source + " 取值应形如 providerId/modelName，当前: " + spec);
+        }
+        return new ResolvedModel(registry.require(parts[0].trim()), parts[1].trim());
     }
 
     public record ResolvedModel(LlmProvider provider, String model) {

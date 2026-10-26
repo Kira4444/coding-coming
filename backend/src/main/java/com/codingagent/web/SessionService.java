@@ -224,7 +224,8 @@ public class SessionService {
                 p.getApprovalPolicy(),
                 p.getMaxTurns(),
                 p.getTokenBudget(),
-                com.codingagent.agent.ProjectAgentConfig.parseList(p.getExcludePaths()));
+                com.codingagent.agent.ProjectAgentConfig.parseList(p.getExcludePaths()),
+                p.getModelOverride());
     }
 
     /** 删除项目及其下会话。会话的工作区同步回收。 */
