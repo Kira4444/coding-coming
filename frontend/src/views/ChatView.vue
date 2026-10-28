@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { api, sendMessage } from '../api'
-import type { AgentEvent, DiffResponse, Message, Session } from '../types'
-import { t } from '../i18n'
+import { api, ApiError, sendMessage } from '../api'
+import type { AgentEvent, DiffResponse, Message, RewindOp, Session } from '../types'
+import { t, tf } from '../i18n'
 import ToolCard from '../components/ToolCard.vue'
 import ApprovalModal from '../components/ApprovalModal.vue'
 import DiffView from '../components/DiffView.vue'
+import RewindPanel from '../components/RewindPanel.vue'
 
 const props = defineProps<{ id: string }>()
 const router = useRouter()
@@ -46,6 +47,16 @@ const reasoningOpen = ref(false)
 const historyReasoningOpen = ref<Set<number>>(new Set())
 const isRunning = ref(false)
 
+// ---------- 会话回滚（rewind） ----------
+const showRewind = ref(false)
+/** 回滚 / 恢复成功后的 toast */
+const rewindTip = ref('')
+/** 操作日志，用于找「可恢复的操作」 */
+const rewinds = ref<RewindOp[]>([])
+const showRecover = ref(false)
+const recoverBusy = ref(false)
+const recoverError = ref('')
+
 const input = ref('')
 const scrollEl = ref<HTMLElement | null>(null)
 
@@ -66,6 +77,7 @@ async function load() {
   try {
     session.value = await api.getSession(props.id)
     history.value = await api.listMessages(props.id)
+    await loadRewinds()
     await scrollBottom()
   } catch (e) {
     errorMsg.value = (e as Error).message
@@ -211,8 +223,126 @@ async function refresh() {
   try {
     session.value = await api.getSession(props.id)
     history.value = await api.listMessages(props.id)
+    await loadRewinds()
   } catch {
     // 刷新失败不影响当前展示
+  }
+}
+
+/** 操作日志只决定「恢复」入口的显隐，拉不到不影响主流程 */
+async function loadRewinds() {
+  try {
+    rewinds.value = await api.listRewinds(props.id)
+  } catch {
+    rewinds.value = []
+  }
+}
+
+// ---------- 回滚 / 恢复 ----------
+
+/** 当前活跃时间线尖端 = 未回滚消息的最大 turn（旧行为 null 不参与） */
+const currentTipTurn = computed(() => {
+  let max = 0
+  for (const m of history.value) {
+    if (!m.rolledBack && typeof m.turn === 'number' && m.turn > max) max = m.turn
+  }
+  return max
+})
+
+/** 可恢复的操作 = id 最大的 APPLIED 行（栈纪律：更晚的记录是 RESTORED / FAILED 时不挡路） */
+const recoverableOp = computed(() => {
+  const applied = rewinds.value.filter((o) => o.status === 'APPLIED')
+  return applied.reduce<RewindOp | null>(
+    (best, o) => (!best || o.opId > best.opId ? o : best),
+    null,
+  )
+})
+
+/** 第一条已回滚消息：分隔条插在它前面 */
+const firstRolledId = computed(() => history.value.find((m) => m.rolledBack)?.id ?? null)
+
+const recoverDisabled = computed(() => isRunning.value || !!session.value?.workspacePurged || recoverBusy.value)
+
+function recoverDisabledTip(): string {
+  if (session.value?.workspacePurged) return t('chat.rewind.tipPurged')
+  return t('chat.rewind.tipRunning')
+}
+
+function turnLabel(turn: number | null | undefined): string {
+  if (turn == null) return ''
+  return turn === 0 ? t('chat.rewind.initialTitle') : tf('chat.rewind.turnLabel', { turn })
+}
+
+function rewindErrorText(e: unknown): string {
+  const msg = (e as Error).message
+  return e instanceof ApiError && e.status === 409 ? `${msg}（${t('chat.rewind.refreshHint')}）` : msg
+}
+
+/** 回滚 / 恢复成功后：清掉 diff 缓存重拉、重拉消息、弹 toast */
+async function afterTimelineChange(toast: string) {
+  diff.value = null
+  if (tab.value === 'diff') void loadDiff()
+  await refresh()
+  rewindTip.value = toast
+  setTimeout(() => {
+    if (rewindTip.value === toast) rewindTip.value = ''
+  }, 2800)
+}
+
+function onRewindDone(op: { kind: 'REWIND' | 'RECOVER'; toTurn: number }) {
+  const toast =
+    op.toTurn === 0
+      ? t('chat.rewind.rewindDoneZero')
+      : tf('chat.rewind.rewindDone', { turn: op.toTurn })
+  void afterTimelineChange(toast)
+}
+
+/** 恢复对 X 的反转：恢复 X 标掉的轮次，X 之后新增的分歧轮次移出活跃集 */
+function recoverCounts() {
+  const op = recoverableOp.value
+  if (!op) return { restore: 0, added: 0 }
+  const restore = op.rolledTurns.length
+  const diverged = new Set<number>()
+  for (const m of history.value) {
+    if (!m.rolledBack && typeof m.turn === 'number' && m.turn > op.fromTurn) diverged.add(m.turn)
+  }
+  return { restore, added: diverged.size + op.unrolledTurns.length }
+}
+
+const recoverConfirmText = computed(() => {
+  if (!recoverableOp.value) return ''
+  const { restore, added } = recoverCounts()
+  return added > 0
+    ? tf('chat.rewind.recoverConfirmDiverged', { turns: restore, new: added })
+    : tf('chat.rewind.recoverConfirmSimple', { turns: restore })
+})
+
+async function openRecover() {
+  // 打开确认框前重取操作日志：可恢复的永远是「id 最大的 APPLIED 行」，避免用陈旧缓存
+  await loadRewinds()
+  if (!recoverableOp.value) return
+  recoverError.value = ''
+  showRecover.value = true
+}
+
+async function doRecover() {
+  const op = recoverableOp.value
+  if (!op || recoverBusy.value) return
+  recoverBusy.value = true
+  recoverError.value = ''
+  try {
+    const res = await api.recoverRewind(props.id, op.opId, { expectedTipTurn: currentTipTurn.value })
+    showRecover.value = false
+    const toast =
+      res.toTurn === 0
+        ? t('chat.rewind.recoverDoneZero')
+        : tf('chat.rewind.recoverDone', { turn: res.toTurn })
+    void afterTimelineChange(toast)
+  } catch (e) {
+    // 失败留在弹窗里显示后端文案（409 提示刷新），关掉会让人以为没反应
+    recoverError.value = rewindErrorText(e)
+  } finally {
+    recoverBusy.value = false
   }
 }
 
@@ -272,6 +402,15 @@ const usage = computed(() => ({
         </button>
       </div>
 
+      <button
+        class="rewind-entry"
+        :disabled="isRunning || session?.workspacePurged"
+        :title="isRunning ? t('chat.rewind.tipRunning') : session?.workspacePurged ? t('chat.rewind.tipPurged') : ''"
+        @click="showRewind = true"
+      >
+        ⟲ {{ t('chat.rewind.button') }}
+      </button>
+
       <div class="usage-pill">
         <span>{{ t('promptTokens') }} {{ usage.prompt.toLocaleString() }}</span>
         <span>{{ t('completionTokens') }} {{ usage.completion.toLocaleString() }}</span>
@@ -284,24 +423,44 @@ const usage = computed(() => ({
         <div v-if="loading" class="loading">{{ t('loading') }}</div>
         <template v-else>
           <div v-if="errorMsg" class="notice error">{{ errorMsg }}</div>
+          <div v-if="rewindTip" class="notice info">{{ rewindTip }}</div>
           <div v-if="session?.workspacePurged" class="notice info">
             {{ t('workspacePurged') }}
           </div>
 
-          <div v-for="m in history" :key="'h' + m.id" class="msg" :class="m.role.toLowerCase()">
-            <div class="msg-role">{{ m.role }}</div>
-
-            <!-- 历史里的思考过程：默认折叠，点开可回看当时怎么想的 -->
-            <div v-if="m.reasoning" class="reasoning">
-              <div class="reasoning-head" @click="toggleHistoryReasoning(m.id)">
-                <span class="reasoning-label">{{ t('thinking') }}</span>
-                <span class="chevron">{{ historyReasoningOpen.has(m.id) ? '▾' : '▸' }}</span>
-              </div>
-              <div v-if="historyReasoningOpen.has(m.id)" class="reasoning-body">{{ m.reasoning }}</div>
+          <!-- 全部行照 id 顺序渲染（含已回滚），已回滚区灰显可见而非凭空消失 -->
+          <template v-for="m in history" :key="'h' + m.id">
+            <div v-if="m.id === firstRolledId" class="rewind-divider">
+              <span class="rewind-divider-text">───── {{ t('chat.rewind.rolledBackBanner') }} ──────</span>
+              <button
+                v-if="recoverableOp"
+                class="danger"
+                :disabled="recoverDisabled"
+                :title="recoverDisabled ? recoverDisabledTip() : ''"
+                @click="openRecover"
+              >
+                {{ t('chat.rewind.recoverAction') }}
+              </button>
             </div>
 
-            <div v-if="m.content" class="msg-body">{{ m.content }}</div>
-          </div>
+            <div class="msg" :class="[m.role.toLowerCase(), { rolled: m.rolledBack }]">
+              <div class="msg-role">
+                {{ m.role }}<template v-if="m.turn != null"> · {{ turnLabel(m.turn) }}</template>
+                <span v-if="m.rolledBack" class="rolled-pill">{{ t('chat.rewind.rolledBackBadge') }}</span>
+              </div>
+
+              <!-- 历史里的思考过程：默认折叠，点开可回看当时怎么想的 -->
+              <div v-if="m.reasoning" class="reasoning">
+                <div class="reasoning-head" @click="toggleHistoryReasoning(m.id)">
+                  <span class="reasoning-label">{{ t('thinking') }}</span>
+                  <span class="chevron">{{ historyReasoningOpen.has(m.id) ? '▾' : '▸' }}</span>
+                </div>
+                <div v-if="historyReasoningOpen.has(m.id)" class="reasoning-body">{{ m.reasoning }}</div>
+              </div>
+
+              <div v-if="m.content" class="msg-body">{{ m.content }}</div>
+            </div>
+          </template>
 
           <template v-for="(item, i) in feed" :key="i">
             <div v-if="item.kind === 'user'" class="msg user">
@@ -377,6 +536,30 @@ const usage = computed(() => ({
         </button>
       </div>
       <DiffView :diff="diff" :loading="diffLoading" :error="diffError" />
+    </div>
+
+    <!-- ---------- 回滚面板（侧抽屉） ---------- -->
+    <RewindPanel
+      v-if="showRewind"
+      :session-id="id"
+      :running="isRunning"
+      @close="showRewind = false"
+      @done="onRewindDone"
+    />
+
+    <!-- ---------- 恢复确认（危险操作二次确认） ---------- -->
+    <div v-if="showRecover" class="modal-backdrop" @click.self="!recoverBusy && (showRecover = false)">
+      <div class="modal">
+        <h2>{{ t('chat.rewind.recoverConfirmTitle') }}</h2>
+        <p class="modal-text">{{ recoverConfirmText }}</p>
+        <div v-if="recoverError" class="notice error">{{ recoverError }}</div>
+        <div class="modal-actions">
+          <button :disabled="recoverBusy" @click="showRecover = false">{{ t('cancel') }}</button>
+          <button class="primary" :disabled="recoverBusy" @click="doRecover">
+            {{ recoverBusy ? t('chat.rewind.recovering') : t('chat.rewind.recoverConfirmAction') }}
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -590,5 +773,57 @@ const usage = computed(() => ({
   word-break: break-word;
   border-top: 1px solid var(--border);
   background: var(--bg);
+}
+
+/* ===== 会话回滚（rewind） ===== */
+.rewind-entry {
+  flex-shrink: 0;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.rewind-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 900px;
+  margin: 6px 0 16px;
+}
+.rewind-divider-text {
+  flex: 1;
+  color: var(--text-faint);
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rewind-divider button {
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+/* 已回滚内容：灰显低对比，但照常可读可展开 */
+.msg.rolled {
+  opacity: 0.55;
+}
+.msg.rolled:hover {
+  opacity: 0.85;
+}
+.rolled-pill {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 20px;
+  background: var(--bg-input);
+  color: var(--text-faint);
+  font-size: 10px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.modal-text {
+  color: var(--text-dim);
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.65;
 }
 </style>

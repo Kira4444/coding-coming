@@ -22,6 +22,13 @@ public class Message {
     private String toolCallId;
     private String toolName;
     private Boolean truncated;
+    /**
+     * 会话内全局轮次序号（1 起，永不复用）。
+     * 旧数据为 {@code null}：视为第 0 轮，回滚永不触及它。
+     */
+    private Integer turn;
+    /** 是否已被回滚。不进模型历史，仅界面可见；整轮同进同出。 */
+    private Boolean rolledBack;
     private Integer promptTokens;
     private Integer completionTokens;
     private Instant createdAt;
@@ -96,6 +103,22 @@ public class Message {
 
     public void setTruncated(Boolean truncated) {
         this.truncated = truncated;
+    }
+
+    public Integer getTurn() {
+        return turn;
+    }
+
+    public void setTurn(Integer turn) {
+        this.turn = turn;
+    }
+
+    public Boolean getRolledBack() {
+        return rolledBack;
+    }
+
+    public void setRolledBack(Boolean rolledBack) {
+        this.rolledBack = rolledBack;
     }
 
     public Integer getPromptTokens() {

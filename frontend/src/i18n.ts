@@ -30,7 +30,13 @@ export const messages = {
     sandboxImage: '沙箱镜像',
     sandboxImageHint: '留空则用全局默认镜像。可填自己的镜像以带上专用工具链。',
     modelOverride: '模型覆盖',
-    modelOverrideHint: '形如 providerId/modelName，留空则用全局默认模型。',
+    modelOverrideHint: '选择要使用的模型，留空则跟随全局默认模型。',
+    modelOverrideInherit: '跟随全局默认',
+    modelOverrideCurrentGroup: '当前取值',
+    modelDefaultSuffix: '（默认）',
+    modelProviderUnconfigured: '未配置',
+    modelOptionsFallback: '模型列表拉取失败，已降级为各 provider 的配置模型。',
+    modelOptionsWarning: '模型列表提示',
     create: '创建',
     save: '保存',
     saved: '已保存',
@@ -207,6 +213,88 @@ export const messages = {
     systemInfo: '系统信息',
     sandboxDriver: '沙箱驱动',
     maxConcurrent: '最大并发会话',
+
+    // ---------- 会话回滚（rewind） ----------
+    'chat.rewind.button': '回滚',
+    'chat.rewind.panelTitle': '回滚会话与代码',
+    'chat.rewind.panelHint':
+      '回滚点 = 每轮结束时的对话与代码快照。回滚会把对话与工作区代码一起退回到该轮结束时的状态，全程可恢复。',
+    'chat.rewind.currentTip': '当前尖端',
+    'chat.rewind.turnLabel': '第 {turn} 轮',
+    'chat.rewind.initialTitle': '会话初始状态',
+    'chat.rewind.initialHint': '清空对话并回到初始代码',
+    'chat.rewind.activeBadge': '活跃',
+    'chat.rewind.rolledBackBadge': '已回滚',
+    'chat.rewind.messageCount': '{count} 条消息',
+    'chat.rewind.rewindToHere': '回滚到此',
+    'chat.rewind.noPoints': '暂无可回滚点',
+    'chat.rewind.noPointsHint': '对话产生轮次后，每轮结束时都会生成一个可回滚点。',
+    'chat.rewind.tipRunning': '会话执行中，等待本轮结束',
+    'chat.rewind.tipPurged': '工作区已回收，只能回看历史',
+    'chat.rewind.rewindConfirmTitle': '确认回滚？',
+    'chat.rewind.rewindConfirmKeep': '保留第 1..{to} 轮，撤销其后的 {turns} 轮共 {messages} 条消息。',
+    'chat.rewind.rewindConfirmKeepZero': '撤销全部 {turns} 轮共 {messages} 条消息，回到会话初始状态。',
+    'chat.rewind.rewindConfirmUserInput': '目标轮次的用户输入会保留；被撤销轮次的用户输入一并撤销。',
+    'chat.rewind.rewindConfirmCode': '工作区代码将回到第 {to} 轮结束时的状态（含未提交改动）。',
+    'chat.rewind.rewindConfirmCodeZero': '工作区代码将回到会话初始状态。',
+    'chat.rewind.rewindConfirmSafe': '消息不删除，将标记为「已回滚」；代码留有备份，可一键恢复。',
+    'chat.rewind.rewindConfirmAction': '确认回滚',
+    'chat.rewind.rewinding': '回滚中…',
+    'chat.rewind.rolledBackBanner': '以下内容已回滚（不在当前时间线）',
+    'chat.rewind.recoverAction': '恢复到回滚前',
+    'chat.rewind.recoverConfirmTitle': '确认恢复？',
+    'chat.rewind.recoverConfirmSimple': '将恢复被回滚的 {turns} 轮消息，代码回到回滚前的状态。',
+    'chat.rewind.recoverConfirmDiverged':
+      '将恢复被回滚的 {turns} 轮消息；回滚后新增的 {new} 轮消息将变为「已回滚」（之后可再恢复）；代码回到回滚前状态。',
+    'chat.rewind.recoverConfirmAction': '确认恢复',
+    'chat.rewind.recovering': '恢复中…',
+    'chat.rewind.rewindDone': '已回滚到第 {turn} 轮',
+    'chat.rewind.rewindDoneZero': '已回滚到会话初始状态',
+    'chat.rewind.recoverDone': '已恢复，时间线回到第 {turn} 轮',
+    'chat.rewind.recoverDoneZero': '已恢复，时间线回到会话初始状态',
+    'chat.rewind.refreshHint': '请刷新后重试',
+  },
+
+  /** 英文副本（增量：未覆盖的 key 回退中文） */
+  en: {
+    'chat.rewind.button': 'Rewind',
+    'chat.rewind.panelTitle': 'Rewind session & code',
+    'chat.rewind.panelHint':
+      'A rewind point is the conversation + code snapshot at the end of a turn. Rewinding rolls both the chat and the workspace code back to that point; everything is recoverable.',
+    'chat.rewind.currentTip': 'Current tip',
+    'chat.rewind.turnLabel': 'Turn {turn}',
+    'chat.rewind.initialTitle': 'Initial session state',
+    'chat.rewind.initialHint': 'Clear the conversation and return to the initial code',
+    'chat.rewind.activeBadge': 'Active',
+    'chat.rewind.rolledBackBadge': 'Rolled back',
+    'chat.rewind.messageCount': '{count} messages',
+    'chat.rewind.rewindToHere': 'Rewind to here',
+    'chat.rewind.noPoints': 'No rewind points yet',
+    'chat.rewind.noPointsHint': 'Once the conversation produces turns, a rewind point is created at the end of each turn.',
+    'chat.rewind.tipRunning': 'Session is running, wait for the current turn to finish',
+    'chat.rewind.tipPurged': 'Workspace purged, history is read-only',
+    'chat.rewind.rewindConfirmTitle': 'Confirm rewind?',
+    'chat.rewind.rewindConfirmKeep': 'Keep turns 1..{to}; undo the following {turns} turns ({messages} messages).',
+    'chat.rewind.rewindConfirmKeepZero': 'Undo all {turns} turns ({messages} messages) and return to the initial session state.',
+    'chat.rewind.rewindConfirmUserInput': 'The user input of the target turn is kept; inputs of undone turns are rolled back too.',
+    'chat.rewind.rewindConfirmCode': 'Workspace code will return to the state at the end of turn {to} (including uncommitted changes).',
+    'chat.rewind.rewindConfirmCodeZero': 'Workspace code will return to the initial session state.',
+    'chat.rewind.rewindConfirmSafe': 'Nothing is deleted: messages are marked "rolled back"; code is backed up and can be restored in one click.',
+    'chat.rewind.rewindConfirmAction': 'Confirm rewind',
+    'chat.rewind.rewinding': 'Rewinding…',
+    'chat.rewind.rolledBackBanner': 'The following content is rolled back (not on the current timeline)',
+    'chat.rewind.recoverAction': 'Restore to before the rewind',
+    'chat.rewind.recoverConfirmTitle': 'Confirm restore?',
+    'chat.rewind.recoverConfirmSimple': 'Will restore the {turns} rolled-back turns; code returns to the pre-rewind state.',
+    'chat.rewind.recoverConfirmDiverged':
+      'Will restore the {turns} rolled-back turns; the {new} turns added after the rewind become "rolled back" (recoverable later); code returns to the pre-rewind state.',
+    'chat.rewind.recoverConfirmAction': 'Confirm restore',
+    'chat.rewind.recovering': 'Restoring…',
+    'chat.rewind.rewindDone': 'Rewound to turn {turn}',
+    'chat.rewind.rewindDoneZero': 'Rewound to the initial session state',
+    'chat.rewind.recoverDone': 'Restored, timeline back to turn {turn}',
+    'chat.rewind.recoverDoneZero': 'Restored, timeline back to the initial session state',
+    'chat.rewind.refreshHint': 'Please refresh and retry',
   },
 } as const
 
@@ -216,7 +304,15 @@ export type MessageKey = keyof (typeof messages)['zh']
 let current: Locale = 'zh'
 
 export function t(key: MessageKey): string {
-  return messages[current][key] ?? key
+  // en 是增量翻译：没覆盖的 key 回退中文，再不行回退 key 本身
+  const dict = messages[current] as Partial<Record<MessageKey, string>>
+  return dict[key] ?? messages.zh[key] ?? key
+}
+
+/** 带占位符的文案：t(key) 之后把 {name} 换成 vars 里对应的值 */
+export function tf(key: MessageKey, vars: Record<string, string | number>): string {
+  return t(key).replace(/\{(\w+)\}/g, (_m, name: string) =>
+    Object.prototype.hasOwnProperty.call(vars, name) ? String(vars[name]) : `{${name}}`)
 }
 
 export function setLocale(locale: Locale) {

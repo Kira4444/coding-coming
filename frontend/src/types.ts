@@ -121,6 +121,46 @@ export interface Message {
   toolCallId?: string | null
   toolName?: string | null
   truncated?: boolean | null
+  /** 该行所属轮次（会话全局序号）；升级前的旧数据为 null */
+  turn?: number | null
+  /** true = 已回滚（不在当前时间线，UI 灰显，不进模型历史） */
+  rolledBack?: boolean
+}
+
+/** 回滚点 = 某轮结束时的对话 + 代码快照 */
+export interface RewindPoint {
+  turn: number
+  /** 该轮所属 run 的用户输入摘要；turn=0 为 null */
+  prompt: string | null
+  assistantSummary: string | null
+  messageCount: number
+  headSha: string
+  shortSha: string
+  createdAt: string
+  /** false 表示整轮处于「已回滚」区 */
+  active: boolean
+}
+
+export interface RewindPointsView {
+  currentTurn: number
+  running: boolean
+  workspacePurged: boolean
+  points: RewindPoint[]
+}
+
+/** 回滚 / 恢复操作日志行 */
+export interface RewindOp {
+  opId: number
+  kind: 'REWIND' | 'RECOVER'
+  fromTurn: number
+  toTurn: number
+  undoneOpId: number | null
+  rolledTurns: number[]
+  unrolledTurns: number[]
+  rolledMessageCount: number
+  backupRef: string
+  status: 'APPLIED' | 'RESTORED' | 'FAILED'
+  createdAt: string
 }
 
 export interface ToolCall {
@@ -166,6 +206,31 @@ export interface SettingsView {
   maxConcurrentSessions: number
   maxTurns: number
   tokenBudget: number
+}
+
+/** 模型列表来源：UPSTREAM=上游 /models 成功 | FALLBACK=已配置但拉取失败 | UNCONFIGURED=无 api-key 未调上游 */
+export type ModelSource = 'UPSTREAM' | 'FALLBACK' | 'UNCONFIGURED'
+
+export interface ModelOptionView {
+  modelId: string
+  /** 后端拼好的 "providerId/modelId"，前端原样用作 option value，不拼也不切分 */
+  value: string
+  isDefault: boolean
+  selectable: boolean
+}
+
+export interface ProviderModelsView {
+  providerId: string
+  configured: boolean
+  defaultModel: string
+  source: ModelSource
+  warning: string | null
+  models: ModelOptionView[]
+}
+
+export interface ModelOptionsView {
+  defaultProvider: string
+  providers: ProviderModelsView[]
 }
 
 /** SSE 事件负载，与后端 AgentEvent 对齐 */

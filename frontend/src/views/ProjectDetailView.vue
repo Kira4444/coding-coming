@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
-import type { Project, Session } from '../types'
+import type { ModelOptionView, ModelOptionsView, ModelSource, Project, ProviderModelsView, Session } from '../types'
 import { KNOWN_TOOLS } from '../types'
 import { t } from '../i18n'
 import PageHeader from '../components/PageHeader.vue'
@@ -23,6 +23,9 @@ const busy = ref(false)
 const showDelete = ref(false)
 const deleting = ref(false)
 const deleteError = ref('')
+/** 模型下拉选项；null = 连降级数据都没拿到，只剩「跟随全局默认」+ 当前取值 */
+const modelOptions = ref<ModelOptionsView | null>(null)
+const modelOptionsDegraded = ref(false)
 
 const form = reactive({
   name: '',
@@ -46,7 +49,78 @@ watch(
   { immediate: false },
 )
 
-onMounted(load)
+onMounted(() => {
+  void load()
+  void loadModelOptions()
+})
+
+/**
+ * 拉取模型列表。失败不能让下拉框整个塌掉：
+ * 先降级用 /api/settings 里各 provider 的配置模型顶上，再不行就只留空选项 + 当前取值。
+ */
+async function loadModelOptions() {
+  modelOptionsDegraded.value = false
+  try {
+    modelOptions.value = await api.getModelOptions()
+    return
+  } catch {
+    // 降级
+  }
+  modelOptionsDegraded.value = true
+  try {
+    const s = await api.getSettings()
+    modelOptions.value = {
+      defaultProvider: s.defaultProvider,
+      providers: s.providers.map((p) => ({
+        providerId: p.id,
+        configured: p.configured,
+        defaultModel: p.model,
+        source: (p.configured ? 'FALLBACK' : 'UNCONFIGURED') as ModelSource,
+        warning: null,
+        // 仅降级路径在这里拼 value（与后端同语义：providerId 不含 "/"，第一个 "/" 之后全是模型名）；
+        // 正常路径一律原样用接口下发的 ModelOptionView.value，不拼不切分
+        models: p.model
+          ? [{ modelId: p.model, value: `${p.id}/${p.model}`, isDefault: true, selectable: p.configured }]
+          : [],
+      })),
+    }
+  } catch {
+    modelOptions.value = null
+  }
+}
+
+/** 下拉分组：模型列表 + 兜底把当前已保存但列表里没有的取值单列一组，避免被静默改写 */
+const selectGroups = computed<ProviderModelsView[]>(() => {
+  const groups: ProviderModelsView[] = (modelOptions.value?.providers ?? []).map((p) => ({
+    ...p,
+    models: [...p.models],
+  }))
+  const current = form.modelOverride
+  if (current && !groups.some((p) => p.models.some((m) => m.value === current))) {
+    // 不按 "/" 切分出 provider：modelId 里可能自带 "/"（如 "Qwen/Qwen-72B"），切了会错位
+    groups.push({
+      providerId: t('modelOverrideCurrentGroup'),
+      configured: true,
+      defaultModel: '',
+      source: 'FALLBACK',
+      warning: null,
+      models: [{ modelId: current, value: current, isDefault: false, selectable: true }],
+    })
+  }
+  return groups
+})
+
+const modelWarnings = computed(() =>
+  (modelOptions.value?.providers ?? []).filter((p) => p.warning),
+)
+
+function providerGroupLabel(p: ProviderModelsView): string {
+  return p.configured ? p.providerId : `${p.providerId}（${t('modelProviderUnconfigured')}）`
+}
+
+function modelOptionLabel(m: ModelOptionView): string {
+  return m.isDefault ? `${m.modelId}${t('modelDefaultSuffix')}` : m.modelId
+}
 
 async function load() {
   loading.value = true
@@ -218,8 +292,28 @@ async function remove() {
 
           <div class="field">
             <label>{{ t('modelOverride') }}</label>
-            <input v-model="form.modelOverride" placeholder="deepseek/deepseek-chat" />
+            <select v-model="form.modelOverride">
+              <option value="">{{ t('modelOverrideInherit') }}</option>
+              <optgroup
+                v-for="p in selectGroups"
+                :key="p.providerId"
+                :label="providerGroupLabel(p)"
+                :disabled="!p.configured"
+              >
+                <option
+                  v-for="m in p.models"
+                  :key="m.value"
+                  :value="m.value"
+                  :disabled="!m.selectable"
+                >{{ modelOptionLabel(m) }}</option>
+              </optgroup>
+            </select>
             <div class="field-hint">{{ t('modelOverrideHint') }}</div>
+            <div v-if="modelOptionsDegraded" class="field-hint">{{ t('modelOptionsFallback') }}</div>
+            <div v-if="modelWarnings.length" class="field-hint">
+              {{ t('modelOptionsWarning') }}：
+              <div v-for="p in modelWarnings" :key="p.providerId">{{ p.providerId }}：{{ p.warning }}</div>
+            </div>
           </div>
 
           <div class="panel-actions">

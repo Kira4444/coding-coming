@@ -13,6 +13,7 @@ import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import reactor.core.publisher.SynchronousSink;
 import reactor.netty.http.client.HttpClient;
 import reactor.util.retry.Retry;
@@ -21,7 +22,9 @@ import java.io.BufferedReader;
 import java.io.StringReader;
 import java.net.ConnectException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -80,6 +83,55 @@ public class OpenAiCompatibleProvider implements LlmProvider {
     @Override
     public String id() {
         return id;
+    }
+
+    /**
+     * 拉取上游模型列表（{@code GET /models}），返回原始模型 id 列表。
+     *
+     * <p>与 {@link #chatStream} 共用同一个 webClient——鉴权头（Bearer api-key）在
+     * {@link #buildClient} 里已带，这里不用重复拼。失败一律以错误信号上抛：
+     * 「已配置但拉取失败」与「未配置」的降级路径不同，文案要由调用方按上下文决定。
+     *
+     * <p>超时给足 5 秒就够：这是设置页的一次性元数据拉取，不给超时的话会占满
+     * 流式对话那 5 分钟的读超时，页面就卡死在那。
+     */
+    public Mono<List<String>> listModels() {
+        return webClient.get()
+                .uri("/models")
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .bodyToMono(String.class)
+                .timeout(Duration.ofSeconds(5))
+                .map(this::parseModelIds)
+                // 空 body（204 / 200 空体）会让 bodyToMono 空完成，map 根本不跑——
+                // 上游的 Mono.empty 传到 Mono.zip 就把整个响应吞成空体，
+                // 接口就不再「恒返回单个 JSON 对象」了。这里补成空列表，
+                // 语义与 parseModelIds 遇到无 data 字段时一致。
+                .defaultIfEmpty(List.of());
+    }
+
+    /**
+     * 解析 {@code {"data":[{"id":"..."}]}}。data 缺失 / 非数组返回空列表——
+     * 空列表算不算拉取失败由调用方判定（有些网关确实不实现 /models）。
+     */
+    private List<String> parseModelIds(String json) {
+        try {
+            JsonNode root = mapper.readTree(json);
+            JsonNode data = root.get("data");
+            if (data == null || !data.isArray()) {
+                return List.of();
+            }
+            List<String> ids = new ArrayList<>();
+            for (JsonNode item : data) {
+                String modelId = item.path("id").asText("");
+                if (!modelId.isBlank()) {
+                    ids.add(modelId.trim());
+                }
+            }
+            return ids;
+        } catch (Exception e) {
+            throw new IllegalStateException("/models 响应解析失败: " + e.getMessage(), e);
+        }
     }
 
     @Override

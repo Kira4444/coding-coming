@@ -25,13 +25,22 @@ public class SessionRuntime {
     /** 正在等待裁决的审批：approvalId -> 未来结果 */
     private final Map<String, CompletableFuture<Boolean>> pendingApprovals = new ConcurrentHashMap<>();
 
-    /** 本轮是否正在执行，防止并发触发两次 */
-    private final AtomicBoolean running = new AtomicBoolean(false);
+    /**
+     * 本轮是否正在执行，防止并发触发两次。
+     *
+     * <p><b>这个实例不是本类创建的</b>，由调用方注入（见 SessionService 的 runGates）。
+     * 原因：闸门必须与「runtime 是否存在」无关——runtime 要等 {@code activate()}
+     * 才建出来，而回滚/恢复要能与<b>尚未激活的会话</b>互斥。把闸门内嵌在这里的话，
+     * 重启后第一次操作两边拿到的是不同的对象（一边压根没有），互斥就失效了。
+     */
+    private final AtomicBoolean running;
 
-    public SessionRuntime(String sessionId, SandboxSession sandbox, AgentLoop.SessionPolicy policy) {
+    public SessionRuntime(String sessionId, SandboxSession sandbox, AgentLoop.SessionPolicy policy,
+                          AtomicBoolean running) {
         this.sessionId = sessionId;
         this.sandbox = sandbox;
         this.policy = policy;
+        this.running = running;
     }
 
     public String sessionId() {

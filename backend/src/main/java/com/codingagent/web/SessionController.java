@@ -2,6 +2,7 @@ package com.codingagent.auth;
 
 import com.codingagent.agent.AgentEvent;
 import com.codingagent.storage.entity.Session;
+import com.codingagent.web.RewindService;
 import com.codingagent.web.SessionService;
 import com.codingagent.web.dto.Dtos;
 import jakarta.validation.Valid;
@@ -22,10 +23,13 @@ import java.util.List;
 public class SessionController {
 
     private final SessionService sessionService;
+    private final RewindService rewindService;
     private final CurrentUser currentUser;
 
-    public SessionController(SessionService sessionService, CurrentUser currentUser) {
+    public SessionController(SessionService sessionService, RewindService rewindService,
+                             CurrentUser currentUser) {
         this.sessionService = sessionService;
+        this.rewindService = rewindService;
         this.currentUser = currentUser;
     }
 
@@ -55,14 +59,57 @@ public class SessionController {
         return Mono.just(toResponse(require(request, id)));
     }
 
+    /**
+     * 会话的全部消息行——<b>含已回滚</b>的（rolledBack=true 界面灰显）。
+     * 发给模型的历史走另一条筛选（loadHistory 过滤 rolled_back=0），别互相复用。
+     */
     @GetMapping("/{id}/messages")
     public Mono<List<MessageView>> messages(ServerHttpRequest request, @PathVariable String id) {
         require(request, id);
         return Mono.just(sessionService.listMessages(id).stream()
                 .map(m -> new MessageView(
                         m.getId(), m.getRole(), m.getContent(), m.getReasoning(),
-                        m.getToolCalls(), m.getToolCallId(), m.getToolName(), m.getTruncated()))
+                        m.getToolCalls(), m.getToolCallId(), m.getToolName(), m.getTruncated(),
+                        m.getTurn(), Boolean.TRUE.equals(m.getRolledBack())))
                 .toList());
+    }
+
+    // ---------- rewind（回滚会话 + 代码） ----------
+
+    /** 列出可回滚点。running=true 时前端只展示列表、禁用「回滚到此」（后端兜底 409）。 */
+    @GetMapping("/{id}/rewind-points")
+    public Mono<Dtos.RewindPointsResponse> rewindPoints(ServerHttpRequest request,
+                                                        @PathVariable String id) {
+        Session session = require(request, id);
+        return Mono.fromCallable(() -> rewindService.rewindPoints(session));
+    }
+
+    /** 回滚到第 N 轮：保留 1..N，撤销 N+1 及之后（对话与代码一起回）。 */
+    @PostMapping("/{id}/rewind")
+    public Mono<Dtos.RewindOpView> rewind(ServerHttpRequest request,
+                                          @PathVariable String id,
+                                          @Valid @RequestBody Dtos.RewindRequest req) {
+        Long userId = currentUser.requireUserId(request);
+        Session session = require(request, id);
+        return Mono.fromCallable(() -> rewindService.rewind(session, req, userId));
+    }
+
+    /** 回滚/恢复操作日志，按 id 降序。 */
+    @GetMapping("/{id}/rewinds")
+    public Mono<List<Dtos.RewindOpView>> rewinds(ServerHttpRequest request, @PathVariable String id) {
+        Session session = require(request, id);
+        return Mono.fromCallable(() -> rewindService.listOps(session));
+    }
+
+    /** 恢复 = 撤销 opId 这一步，回到它执行之前的状态（对 RECOVER 再调即重做）。 */
+    @PostMapping("/{id}/rewinds/{opId}/recover")
+    public Mono<Dtos.RewindOpView> recover(ServerHttpRequest request,
+                                           @PathVariable String id,
+                                           @PathVariable Long opId,
+                                           @RequestBody(required = false) Dtos.RecoverRequest req) {
+        Long userId = currentUser.requireUserId(request);
+        Session session = require(request, id);
+        return Mono.fromCallable(() -> rewindService.recover(session, opId, req, userId));
     }
 
     /** 会话分支上的改动 diff。 */
@@ -183,7 +230,11 @@ public class SessionController {
 
     public record MessageView(
             Long id, String role, String content, String reasoning, String toolCalls,
-            String toolCallId, String toolName, Boolean truncated
+            String toolCallId, String toolName, Boolean truncated,
+            // 该行所属轮次（旧行为 null，视为第 0 轮）
+            Integer turn,
+            // true = 已回滚（界面灰显，不进模型历史）
+            Boolean rolledBack
     ) {
     }
 

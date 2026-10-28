@@ -1,6 +1,6 @@
 import type {
-  AgentConfig, CheckResult, DiffResponse, GitInfo, McpServer, Message, Project,
-  PublishConfig, PublishResult, Session, Skill, User, AgentEvent, SettingsView,
+  AgentConfig, CheckResult, DiffResponse, GitInfo, McpServer, Message, ModelOptionsView, Project,
+  PublishConfig, PublishResult, RewindOp, RewindPointsView, Session, Skill, User, AgentEvent, SettingsView,
 } from './types'
 import { auth, clearSession } from './store'
 
@@ -120,6 +120,27 @@ export const api = {
 
   listMessages: (id: string) => request<Message[]>(`/api/sessions/${id}/messages`),
 
+  // ---------- 会话回滚（rewind） ----------
+  /** 可回滚点列表：每轮结束时的对话 + 代码快照 */
+  listRewindPoints: (id: string) => request<RewindPointsView>(`/api/sessions/${id}/rewind-points`),
+
+  /** 回滚到第 turn 轮（0 = 会话初始状态）；expectedTipTurn 用于并发防护 */
+  rewind(id: string, input: { turn: number; expectedTipTurn?: number }) {
+    return request<RewindOp>(`/api/sessions/${id}/rewind`, {
+      method: 'POST', body: JSON.stringify(input),
+    })
+  },
+
+  /** 回滚 / 恢复操作日志，按 id 降序 */
+  listRewinds: (id: string) => request<RewindOp[]>(`/api/sessions/${id}/rewinds`),
+
+  /** 撤销一条操作日志行，回到该行执行之前的状态（撤销恢复 = 重做） */
+  recoverRewind(id: string, opId: number, input?: { expectedTipTurn?: number }) {
+    return request<RewindOp>(`/api/sessions/${id}/rewinds/${opId}/recover`, {
+      method: 'POST', body: JSON.stringify(input ?? {}),
+    })
+  },
+
   getDiff: (id: string) => request<DiffResponse>(`/api/sessions/${id}/diff`),
 
   purgeSession: (id: string) => request<Session>(`/api/sessions/${id}/purge`, { method: 'POST' }),
@@ -150,6 +171,10 @@ export const api = {
 
   // ---------- 设置 ----------
   getSettings: () => request<SettingsView>('/api/settings'),
+
+  /** 各 provider 的可用模型列表；refresh=true 让后端绕过缓存重新拉上游 */
+  getModelOptions: (refresh = false) =>
+    request<ModelOptionsView>(`/api/settings/model-options${refresh ? '?refresh=true' : ''}`),
 
   // ---------- 项目扩展：MCP ----------
   listMcpServers: (projectId: number) =>
